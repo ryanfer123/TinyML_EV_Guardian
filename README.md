@@ -1,107 +1,62 @@
 # TinyML EV Guardian: Edge AI Battery Diagnostics ⚡🔋
 
-This project implements a **Real-Time Battery Diagnostic System** using **TinyML (Machine Learning on the Edge)** for Electric Vehicles (EVs). It runs three parallel machine learning models directly on an **ESP32 microcontroller** to analyze sensor data, estimate health, and detect critical safety risks without needing a cloud connection.
-
-## 🚀 Features
-
-### 1. **Safety Monitor (Model A)**
-*   **Purpose:** Detects thermal runaway, electrical faults, and pre-failure conditions.
-*   **Input Features:** Voltage, Current, Temperature (Pack/Inverter/Ambient), Coolant Flow, Isolation Resistance.
-*   **Output Classes:** `Normal`, `Warning` (Thermal Risk), `Critical` (Shutdown).
-
-### 2. **Battery Health Estimator (Model B)**
-*   **Purpose:** Estimates the State of Health (SOH) of the battery pack.
-*   **Input Features:** SoC, Internal Resistance, Cycle Count, DoD, Cell Imbalance.
-*   **Output Classes:** `Good`, `Bad` (Replace/Service).
-
-### 3. **Driver Profiling (Model C)**
-*   **Purpose:** Classifies driving behavior tailored to **Indian Road Conditions**.
-*   **Input Features:** Speed, Brake Frequency/Intensity, Throttle Variance.
-*   **Output Classes:** `City` (Stop-and-Go), `Highway` (Steady), `Emergency` (Panic Braking).
-
----
-
-## 🛠️ Hardware Requirements
-*   **Microcontroller:** ESP32 (DevKit V1 or similar), ESP32-S3, or any Arduino-compatible board with >500KB Flash.
-*   **Sensors (Simulated in Code):** BMS Voltage/Current sensors, NTC Thermistors, Hall Effect sensors.
+This project implements a **Real-Time Battery Diagnostic System** using **TinyML** for Electric Vehicles (EVs). It uses a dual-ESP32 architecture: one to simulate realistic vehicle sensor data via CAN bus, and another to run parallel ML models on the edge to detect safety, health, and driving profiles.
 
 ---
 
 ## 📂 Project Structure
 
-```bash
-TinyML_EV_Guardian/
-├── tinyml_models/           # C++ Code for ESP32
-│   ├── TinyML_EV_Guardian.ino   # Main Arduino Sketch
-│   ├── model_utils.h            # Helper functions for features/labels
-│   ├── model_a_safety.h         # Safety Model (Random Forest)
-│   ├── model_b_health.h         # Health Model (Random Forest)
-│   └── model_c_driver.h         # Driver Model (Random Forest)
-├── models/                  # Trained Python Models (.pkl)
-├── generate_data.py         # Script to generate synthetic training data
-├── train_all_models.py      # Script to train models using Scikit-Learn
-├── convert_to_tinyml.py     # Script to convert .pkl -> .h (C++)
-└── requirements.txt         # Python dependencies
-```
+### 1. `ESP32_1_Sender_Simulator/` (Vehicle Simulator)
+*   **Role:** Simulates the EV sensors (BMS, Motor Controller, etc.) and transmits data via CAN bus.
+*   **Hardware:** ESP32 + MCP2515 CAN Module.
+*   **Features:**
+    *   Simulates realistic physics (Voltage sag, Temp rise, Regenerative Braking).
+    *   6 Modes: Idle, City, Highway, Emergency, Thermal Fault, Electrical Fault.
+    *   Control via Serial Monitor (Type `1`-`6`).
+
+### 2. `ESP32_2_Receiver_TinyML_Guardian/` (The AI Brain)
+*   **Role:** Receives CAN data, parses it, and runs 3 Random Forest models in real-time.
+*   **Hardware:** ESP32 + MCP2515 CAN Module.
+*   **Models:**
+    *   **Safety Monitor:** Detects thermal runaway/faults.
+    *   **Health Estimator:** Estimates SOH (Good/Bad).
+    *   **Driver Profiling:** Classifies driving context (City/Highway/Panic).
+
+### 3. `ML_Training/` (Python Workflow)
+*   **Role:** Contains all scripts to generate data, train models, and convert them to C++.
+    *   `generate_data.py`: Creates synthetic training datasets.
+    *   `train_all_models.py`: Trains Scikit-Learn Random Forest models.
+    *   `convert_to_tinyml.py`: Converts .pkl models to .h C++ headers for the ESP32.
 
 ---
 
-## ⚡ How to Run on ESP32
+## 🚀 How to Run
 
-### Option 1: Using Arduino IDE
+### Step 1: Hardware Setup
+1.  Connect two ESP32s with MCP2515 CAN modules.
+2.  Connect CAN High to CAN High, CAN Low to CAN Low.
+3.  Ensure 120-ohm termination resistors are enabled on the modules.
 
-1.  **Download** this repository.
-2.  Navigate to the `tinyml_models` folder.
-3.  **Rename** the folder `tinyml_models` to `TinyML_EV_Guardian` (Arduino IDE requires the folder name to match the `.ino` file name).
-4.  Open `TinyML_EV_Guardian.ino` in the Arduino IDE.
-5.  Select your board: `Tools` > `Board` > `ESP32 Dev Module`.
-6.  **Upload** the code to your ESP32.
-7.  Open the **Serial Monitor** (Baud Rate: 115200) to see the real-time predictions.
+### Step 2: Flash the Sender (Simulator)
+1.  Open `ESP32_1_Sender_Simulator/ESP32_1_Sender_Simulator.ino`.
+2.  Upload to **ESP32 #1**.
+3.  Open Serial Monitor (115200 baud).
 
-### Option 2: Using PlatformIO (VS Code)
+### Step 3: Flash the Receiver (TinyML Guardian)
+1.  Open `ESP32_2_Receiver_TinyML_Guardian/ESP32_2_Receiver_TinyML_Guardian.ino`.
+2.  Upload to **ESP32 #2**.
+3.  Open Serial Monitor (115200 baud).
 
-1.  Create a new PlatformIO project for your board (e.g., `esp32dev`).
-2.  Copy the contents of `TinyML_EV_Guardian.ino` into `src/main.cpp`.
-3.  Copy all `.h` files (`model_a_safety.h`, `model_b_health.h`, etc.) into the `src/` or `include/` folder.
-4.  Build and Upload.
-
----
-
-## 🧠 How to Retrain the Models
-
-If you want to modify the data or retrain the models:
-
-1.  **Install Python Dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-2.  **Generate New Data:**
-    ```bash
-    python generate_data.py
-    ```
-    *Generates 3 CSV files with synthetic data (including noise/errors).*
-
-3.  **Train Models:**
-    ```bash
-    python train_all_models.py
-    ```
-    *Trains Random Forest classifiers and saves them as .pkl files in `models/`.*
-
-4.  **Convert to C++ (TinyML):**
-    ```bash
-    python convert_to_tinyml.py
-    ```
-    *Converts .pkl models into .h C++ header files in `tinyml_models/`.*
+### Step 4: Test
+1.  On the **Sender** Serial Monitor, type `2` to start City Driving simulation.
+2.  On the **Receiver** Serial Monitor, watch the AI classify the incoming data in real-time!
 
 ---
 
-## 📊 Model Performance (Accuracy)
-*   **Safety Model:** ~85% (Realistic confusion between Warning/Normal states)
-*   **Health Model:** ~86% (Realistic ambiguity in "Gray Zone" health)
-*   **Driver Model:** ~90% (Distinguishes Highway vs City traffic in Indian context)
-
----
+## 🛠️ Requirements
+*   **Hardware:** 2x ESP32 Dev Boards, 2x MCP2515 CAN Modules.
+*   **Software:** Arduino IDE or PlatformIO.
+*   **Libraries:** `mcp_can`, `SPI`.
 
 ## 📜 License
-MIT License. Free to use for educational and commercial purposes.
+MIT License.

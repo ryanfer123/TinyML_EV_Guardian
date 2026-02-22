@@ -2,9 +2,11 @@ import joblib
 from micromlgen import port
 import os
 
+OUTPUT_DIR = '../ESP32_2_Receiver_TinyML_Guardian'
+
 # Ensure output directory exists
-if not os.path.exists('tinyml_models'):
-    os.makedirs('tinyml_models')
+if not os.path.exists(OUTPUT_DIR):
+    os.makedirs(OUTPUT_DIR)
 
 def convert_and_save(model_path, header_name, class_map, namespace):
     print(f"Converting {model_path}...")
@@ -30,7 +32,7 @@ namespace {namespace} {{
 """
         
         # Save to file
-        output_path = f'tinyml_models/{header_name}.h'
+        output_path = f'{OUTPUT_DIR}/{header_name}.h'
         with open(output_path, 'w') as f:
             f.write(final_code)
             
@@ -69,4 +71,4 @@ convert_and_save(
     'DriverModel'
 )
 
-print("\nConversion Complete! Copy the 'tinyml_models' folder to your ESP32 project.")
+    print(f"\nConversion Complete! Headers saved to '{OUTPUT_DIR}'.")
