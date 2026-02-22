@@ -90,9 +90,9 @@ except Exception as e:
     print(f"❌ Error training Model B: {e}")
 
 # ============================================
-# 3. TRAIN MODEL C - DRIVER (Indian Roads)
+# 3. TRAIN MODEL C - DRIVER (Eco vs Aggressive)
 # ============================================
-print("\n[3/3] Training Model C - Driver Profiling (Indian Context)...")
+print("\n[3/3] Training Model C - Driver Profiling...")
 
 try:
     # Load Data
@@ -115,8 +115,8 @@ try:
     
     print(f"✓ Model C Accuracy: {acc:.4f}")
     print("  Classification Report:")
-    # Update target names for the new 3 classes
-    print(classification_report(y_test, y_pred, target_names=['City', 'Highway', 'Emergency']))
+    # Update target names for the new 2 classes
+    print(classification_report(y_test, y_pred, target_names=['Eco', 'Aggressive']))
     print("  Confusion Matrix:")
     print(confusion_matrix(y_test, y_pred))
     

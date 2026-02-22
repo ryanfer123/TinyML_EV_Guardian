@@ -140,72 +140,47 @@ print(f"✓ Generated {len(df_health):,} noisy samples for Health")
 
 
 # ============================================
-# MODEL C - DRIVER (INDIAN ROADS)
-# Labels: 0 (City), 1 (Highway), 2 (Emergency)
+# MODEL C - DRIVER PROFILING
+# Labels: 0 (Eco/Smooth), 1 (Aggressive/Sport)
 # ============================================
-print("\n[3/3] Generating Model C - Driver (Indian Context)...")
+print("\n[3/3] Generating Model C - Driver (Eco vs Aggressive)...")
 
 def generate_driver_data(n_samples=10000):
     data = []
-    classes = [0, 1, 2]
+    classes = [0, 1]
     
-    for label in np.random.choice(classes, n_samples, p=[0.5, 0.4, 0.1]):
+    for label in np.random.choice(classes, n_samples, p=[0.6, 0.4]):
         
-        # SCENARIO OVERLAPS:
-        # 1. "Highway Traffic Jam": High brake freq, low speed (Looks like City)
-        # 2. "Empty Night City Road": High speed, low brake (Looks like Highway)
-        # 3. "Aggressive City Driving": Hard braking (Looks like Emergency)
-        
-        is_traffic_jam = (label == 1 and np.random.random() < 0.15)
-        is_empty_city = (label == 0 and np.random.random() < 0.10)
-        is_panic_city = (label == 0 and np.random.random() < 0.05)
-
-        if label == 0: # City
-            if is_empty_city:
-                speed_avg = np.random.normal(60, 10) # Fast!
-                brake_freq = np.random.normal(5, 3)
-            elif is_panic_city:
-                speed_avg = np.random.normal(30, 10)
-                brake_freq = np.random.normal(20, 5) # Panic!
-            else:
-                speed_avg = np.random.normal(30, 15)
-                brake_freq = np.random.normal(15, 8)
-                
-            throttle_std = np.random.normal(20, 10)
-            brake_intensity = np.random.normal(35, 15)
-
-        elif label == 1: # Highway
-            if is_traffic_jam:
-                speed_avg = np.random.normal(20, 10) # Slow!
-                brake_freq = np.random.normal(12, 5) # Stop-and-go
-            else:
-                speed_avg = np.random.normal(65, 20) # Wide range
-                brake_freq = np.random.normal(3, 3)
+        if label == 0: # Eco / Smooth
+            # Smooth throttle, high regen, low energy
+            throttle_spike = np.random.normal(15, 5)   # Low variance
+            brake_usage = np.random.normal(10, 5)      # Mechanical brake usage low
+            energy_cons = np.random.normal(140, 15)    # Wh/km (Low)
+            regen_eff = np.random.normal(0.25, 0.05)   # % Energy recovered (High)
+            jerk = np.random.normal(0.5, 0.2)          # m/s^3 (Smooth)
             
-            throttle_std = np.random.normal(10, 5)
-            brake_intensity = np.random.normal(15, 10)
+        else: # Aggressive / Sport
+            # Spiky throttle, low regen, high energy
+            throttle_spike = np.random.normal(60, 15)  # High variance/spikes
+            brake_usage = np.random.normal(40, 15)     # Heavy mechanical braking
+            energy_cons = np.random.normal(220, 30)    # Wh/km (High)
+            regen_eff = np.random.normal(0.10, 0.05)   # % Energy recovered (Low)
+            jerk = np.random.normal(2.5, 1.0)          # m/s^3 (Jerky)
 
-        else: # Emergency
-            # Can happen at ANY speed
-            speed_avg = np.random.uniform(10, 100) 
-            brake_freq = np.random.normal(5, 5)
-            throttle_std = np.random.normal(50, 20)
-            brake_intensity = np.random.normal(85, 15) # High, but can dip to 70
+        # Add Noise & Overlap
+        throttle_spike = add_noise(throttle_spike, 0.1)
+        energy_cons = add_noise(energy_cons, 0.1)
 
-        # Add generic sensor noise
-        speed_avg = add_noise(speed_avg, 0.1)
-        
-        # Labels are sometimes wrong (e.g. driver just braked hard for a pothole, not emergency)
-        if np.random.random() < 0.05:
-             label = np.random.choice([0, 1, 2])
+        # Label noise
+        if np.random.random() < 0.08:
+            label = 1 - label
 
         data.append({
-            'Speed_Avg': round(max(0, speed_avg), 1),
-            'Brake_Frequency': round(max(0, brake_freq), 1),
-            'Brake_Intensity': round(max(0, min(100, brake_intensity)), 1),
-            'Throttle_Variance': round(max(0, throttle_std), 2),
-            'Energy_Consumption': round(max(0, np.random.normal(0.15, 0.05)), 3), # Very noisy
-            'Range_Est': round(max(0, np.random.normal(150, 40)), 1), # Almost random
+            'Throttle_Spike': round(max(0, throttle_spike), 1),
+            'Brake_Usage': round(max(0, brake_usage), 1),
+            'Energy_Consumption': round(max(0, energy_cons), 1),
+            'Regen_Efficiency': round(max(0, min(1.0, regen_eff)), 2),
+            'Jerk': round(max(0, jerk), 2),
             'Label_Driver': label
         })
     
@@ -213,7 +188,7 @@ def generate_driver_data(n_samples=10000):
 
 df_driver = generate_driver_data(10000)
 df_driver.to_csv('model_c_driver_10k.csv', index=False)
-print(f"✓ Generated {len(df_driver):,} noisy samples for Driver (Indian Context)")
+print(f"✓ Generated {len(df_driver):,} noisy samples for Driver (Eco vs Aggressive)")
 
 print("\n" + "="*80)
 print("DATA GENERATION COMPLETE")

@@ -71,9 +71,10 @@ void loop() {
             case 0x203: health_in.pol_voltage = val1; health_in.stress_index = val2; break;
             
             // --- DRIVER ---
-            case 0x300: driver_in.speed_avg = val1; driver_in.brake_freq = val2; break;
-            case 0x301: driver_in.brake_intensity = val1; driver_in.throttle_var = val2; break;
-            case 0x302: driver_in.energy_consumption = val1; driver_in.range_est = val2; break;
+            // [ThrottleSpike, BrakeUsage], [EnergyCons, RegenEff], [Jerk, PADDING]
+            case 0x300: driver_in.throttle_spike = val1; driver_in.brake_usage = val2; break;
+            case 0x301: driver_in.energy_cons = val1; driver_in.regen_eff = val2; break;
+            case 0x302: driver_in.jerk = val1; break; // val2 is padding
         }
         
         // Run Inference periodically (e.g., every full cycle or time-based)

@@ -67,8 +67,8 @@ convert_and_save(
 convert_and_save(
     'models/model_c_driver.pkl', 
     'model_c_driver', 
-    {0: 'City', 1: 'Highway', 2: 'Emergency'},
+    {0: 'Eco', 1: 'Aggressive'},
     'DriverModel'
 )
 
-    print(f"\nConversion Complete! Headers saved to '{OUTPUT_DIR}'.")
+print(f"\nConversion Complete! Headers saved to '{OUTPUT_DIR}'.")
