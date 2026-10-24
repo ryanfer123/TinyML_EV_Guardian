@@ -1,6 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include "../ESP32_1_Sender_Simulator/ESP32_1_Sender_Simulator.ino"
+SerialStub Serial;
 int main() {
     setup();
     vehicle.throttle_var=17;

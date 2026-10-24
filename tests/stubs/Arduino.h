@@ -18,4 +18,4 @@ struct SerialStub {
     template<class T> void println(T, int) {}
     void println() {}
 };
-static SerialStub Serial;
+extern SerialStub Serial;
