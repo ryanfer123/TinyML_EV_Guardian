@@ -1,62 +1,85 @@
-# TinyML EV Guardian: Edge AI Battery Diagnostics ⚡🔋
+# TinyML EV Guardian
 
-This project implements a **Real-Time Battery Diagnostic System** using **TinyML** for Electric Vehicles (EVs). It uses a dual-ESP32 architecture: one to simulate realistic vehicle sensor data via CAN bus, and another to run parallel ML models on the edge to detect safety, health, and driving profiles.
+An educational EV telemetry simulator and ESP32 inference prototype. One board
+sends synthetic battery and driver signals over CAN; another runs three exported
+Random Forest classifiers for safety labels, battery health, and driving style.
 
----
+The training CSVs are synthetic and their generator introduces overlapping classes
+and label noise. Model predictions are not evidence of real battery fault detection.
+The current repository does not include a verified ESP32 build-size report,
+hardware timing measurements, real vehicle evaluation, or protection circuitry.
 
-## 📂 Project Structure
+## Hardware and layout
 
-### 1. `ESP32_1_Sender_Simulator/` (Vehicle Simulator)
-*   **Role:** Simulates the EV sensors (BMS, Motor Controller, etc.) and transmits data via CAN bus.
-*   **Hardware:** ESP32 + MCP2515 CAN Module.
-*   **Features:**
-    *   Simulates realistic physics (Voltage sag, Temp rise, Regenerative Braking).
-    *   6 Modes: Idle, City, Highway, Emergency, Thermal Fault, Electrical Fault.
-    *   Control via Serial Monitor (Type `1`-`6`).
+- Two ESP32 boards with MCP2515 modules, matching 500 kbit/s CAN configuration
+  and 8 MHz oscillator settings; CAN High/Low connected with suitable termination.
+- `ESP32_1_Sender_Simulator/`: sender sketch, 100 ms update interval, six modes.
+- `ESP32_2_Receiver_TinyML_Guardian/`: receiver, feature extraction, exported models.
+- `ML_Training/`: synthetic generators, training scripts, CSVs, and model conversion.
 
-### 2. `ESP32_2_Receiver_TinyML_Guardian/` (The AI Brain)
-*   **Role:** Receives CAN data, parses it, and runs 3 Random Forest models in real-time.
-*   **Hardware:** ESP32 + MCP2515 CAN Module.
-*   **Models:**
-    *   **Safety Monitor:** Detects thermal runaway/faults.
-    *   **Health Estimator:** Estimates SOH (Good/Bad).
-    *   **Driver Profiling:** Classifies driving context (City/Highway/Panic).
+Open each sketch in Arduino IDE, install the `mcp_can` library and ESP32 board
+support, check CS/INT pins against your wiring, and upload to the corresponding
+board. Serial uses 115200 baud. Sender commands `1` through `6` select idle, city,
+highway, emergency, thermal-fault, and electrical-fault scenarios.
 
-### 3. `ML_Training/` (Python Workflow)
-*   **Role:** Contains all scripts to generate data, train models, and convert them to C++.
-    *   `generate_data.py`: Creates synthetic training datasets.
-    *   `train_all_models.py`: Trains Scikit-Learn Random Forest models.
-    *   `convert_to_tinyml.py`: Converts .pkl models to .h C++ headers for the ESP32.
+## Driver wire contract
 
----
+Each standard CAN data frame contains two 32-bit floats in the native ESP32 byte
+order. This protocol assumes matching float representation and endianness.
 
-## 🚀 How to Run
+| CAN ID | First float | Second float |
+| --- | --- | --- |
+| `0x300` | Throttle spike/variation | Mechanical brake usage (%) |
+| `0x301` | Energy consumption (Wh/km) | Regenerative efficiency (0..1) |
+| `0x302` | Jerk (m/s³) | Zero padding |
 
-### Step 1: Hardware Setup
-1.  Connect two ESP32s with MCP2515 CAN modules.
-2.  Connect CAN High to CAN High, CAN Low to CAN Low.
-3.  Ensure 120-ohm termination resistors are enabled on the modules.
+The simulator converts its kWh/km energy value to Wh/km before transmission.
+Regen efficiency and jerk are explicit synthetic scenario values. The receiver
+extracts exactly five driver features in the CSV column order. Failed and short
+CAN reads are rejected before copying floats.
 
-### Step 2: Flash the Sender (Simulator)
-1.  Open `ESP32_1_Sender_Simulator/ESP32_1_Sender_Simulator.ino`.
-2.  Upload to **ESP32 #1**.
-3.  Open Serial Monitor (115200 baud).
+## Reproduce the native checks
 
-### Step 3: Flash the Receiver (TinyML Guardian)
-1.  Open `ESP32_2_Receiver_TinyML_Guardian/ESP32_2_Receiver_TinyML_Guardian.ino`.
-2.  Upload to **ESP32 #2**.
-3.  Open Serial Monitor (115200 baud).
+A C++11 compiler is sufficient; no Python environment or boards are needed.
 
-### Step 4: Test
-1.  On the **Sender** Serial Monitor, type `2` to start City Driving simulation.
-2.  On the **Receiver** Serial Monitor, watch the AI classify the incoming data in real-time!
+```sh
+sh tests/run.sh
+```
 
----
+The tests capture frames from the actual sender sketch, verify feature positions
+and energy units, check extraction-array boundaries, and parse the actual receiver
+and generated headers with lightweight Arduino/CAN doubles. GitHub Actions runs
+the same checks. These checks do not compile with the ESP32 toolchain or validate
+SPI, CAN delivery, electrical wiring, flash capacity, or inference accuracy.
 
-## 🛠️ Requirements
-*   **Hardware:** 2x ESP32 Dev Boards, 2x MCP2515 CAN Modules.
-*   **Software:** Arduino IDE or PlatformIO.
-*   **Libraries:** `mcp_can`, `SPI`.
+## Train and export
 
-## 📜 License
-MIT License.
+Use a separate Python environment and install `ML_Training/requirements.txt`.
+Run scripts from `ML_Training` because their paths currently depend on that working
+directory. Training and conversion overwrite checked-in model artifacts.
+
+```sh
+cd ML_Training
+python generate_data.py
+python train_all_models.py
+python convert_to_tinyml.py
+```
+
+Only load trusted pickle model files. Existing models were retained in the protocol
+fix; they were not retrained or flashed as part of the native checks.
+
+## Remaining engineering work
+
+- Gate each classifier on a complete, fresh set of received sensor frames.
+- Align all derived safety features with their training definitions; the current
+  thermal-gradient and power-limit heuristics differ from the generator.
+- Add grouped/scenario holdouts, per-class metrics, and a recorded model manifest.
+- Measure exported model size and inference latency using the real ESP32 toolchain.
+
+Contributions should state the failure being fixed, include a reproducible test,
+and distinguish simulated results from device measurements.
+
+## License
+
+The existing project README identifies the project as MIT licensed. A standalone
+license file and third-party artifact license inventory remain to be added.

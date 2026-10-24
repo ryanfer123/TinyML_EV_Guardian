@@ -32,6 +32,8 @@ long unsigned int rxId;
 unsigned char len = 0;
 unsigned char rxBuf[8];
 
+void run_diagnostics();
+
 void setup() {
     Serial.begin(115200);
     
@@ -48,7 +50,9 @@ void setup() {
 void loop() {
     // Check for CAN Message
     if(!digitalRead(CAN0_INT)) {
-        CAN0.readMsgBuf(&rxId, &len, rxBuf);
+        if (CAN0.readMsgBuf(&rxId, &len, rxBuf) != CAN_OK || len != 8) {
+            return; // Reject failed/short reads before copying either float.
+        }
         
         // Parse Float Pairs
         float val1, val2;
@@ -102,7 +106,7 @@ void run_diagnostics() {
     Serial.print("HEALTH:  "); Serial.println(get_health_label(h_res));
     
     // 3. Driver
-    float d_feat[6];
+    float d_feat[5];
     extract_driver_features(driver_in, d_feat);
     int d_res = driver_ai.predict(d_feat);
     Serial.print("DRIVER:  "); Serial.println(get_driver_label(d_res));

@@ -34,6 +34,8 @@ struct VehicleState {
     float throttle_var = 0.0;
     float energy_consumption = 0.0;
     float range_est = 200.0;
+    float regen_eff = 0.25;  // Synthetic recovered-energy fraction
+    float jerk = 0.5;        // Synthetic m/s^3, not measured acceleration
 } vehicle;
 
 // Simulation Modes
@@ -135,6 +137,17 @@ void updateVehiclePhysics() {
             break;
     }
 
+    // Explicit synthetic driver inputs in the units used by generate_data.py.
+    // These are scenario assumptions, not measured vehicle telemetry.
+    if (currentMode == MODE_EMERGENCY) {
+        vehicle.energy_consumption = 0.22; // kWh/km -> Wh/km on the wire
+        vehicle.regen_eff = 0.10;
+        vehicle.jerk = 2.5;
+    } else {
+        vehicle.regen_eff = 0.25;
+        vehicle.jerk = 0.5;
+    }
+
     // Generic updates
     vehicle.pack_voltage = 350.0 - (vehicle.pack_current * 0.05); // Sag
     vehicle.soc = max(0.0, vehicle.soc - (vehicle.pack_current * 0.0001)); // Discharge
@@ -146,15 +159,6 @@ void updateVehiclePhysics() {
 }
 
 void transmitData() {
-    // Send Safety Data (ID 0x100 - 0x102)
-    sendFloat(CAN_ID_SAFETY_1, vehicle.pack_voltage, vehicle.pack_current);
-    // Note: We need to pack 4 floats into 2 messages or define a custom struct.
-    // For simplicity, we send specific pairs.
-    
-    // We need to send:
-    // Safety: [PackV, PackI], [CellMax, CellMin], [PackTemp, InvTemp], [AmbTemp, Coolant], [IsoRes, GasPPM]
-    // That's 5 messages. Let's expand the IDs slightly or cycle them.
-    
     // Safety
     sendFloat(0x100, vehicle.pack_voltage, vehicle.pack_current);
     sendFloat(0x101, vehicle.cell_max_v, vehicle.cell_min_v);
@@ -169,11 +173,12 @@ void transmitData() {
     sendFloat(0x202, vehicle.cell_imbalance, vehicle.coulombic_eff);
     sendFloat(0x203, vehicle.pol_voltage, vehicle.stress_index);
 
-    // Driver (ID 0x300+)
-    // [Speed, BrakeFreq], [BrakeInt, ThrottleVar], [Energy, Range]
-    sendFloat(0x300, vehicle.speed_avg, vehicle.brake_freq);
-    sendFloat(0x301, vehicle.brake_intensity, vehicle.throttle_var);
-    sendFloat(0x302, vehicle.energy_consumption, vehicle.range_est);
+    // Driver training order: throttle spike, mechanical brake usage (%),
+    // energy consumption (Wh/km), regen fraction (0..1), jerk (m/s^3).
+    sendFloat(0x300, vehicle.throttle_var, vehicle.brake_intensity);
+    sendFloat(0x301, vehicle.energy_consumption * 1000.0f, vehicle.regen_eff);
+    sendFloat(0x302, vehicle.jerk, 0.0f); // second float is padding
+
 }
 
 // ==========================================
@@ -191,8 +196,7 @@ void setup() {
         
     CAN0.setMode(MCP_NORMAL);
 
-    Serial.println("
-=== VEHICLE SIMULATOR STARTED ===");
+    Serial.println("\n=== VEHICLE SIMULATOR STARTED ===");
     Serial.println("Commands:");
     Serial.println(" [1] Idle Mode");
     Serial.println(" [2] City Driving");
